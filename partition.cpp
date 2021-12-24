@@ -758,7 +758,7 @@ void TWPartition::Setup_Data_Partition(bool Display_Error) {
 			if (is_device_fbe == 1) {
 			     // check whether the device is encrypted, and, if so, report decryption failure
 			     if (PartitionManager.Storage_Is_Encrypted())
-				LOGERR("Unable to decrypt FBE device\n");
+				gui_err("unable_to_decrypt_fbe_device_mgs=Unable to decrypt FBE device.");
 			}
 		} else {
 			DataManager::SetValue(TW_IS_ENCRYPTED, 0);

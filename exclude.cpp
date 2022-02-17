@@ -76,6 +76,9 @@ uint64_t TWExclude::Get_Folder_Size(const string& Path) {
 		FullPath = Path + "/";
 		FullPath += de->d_name;
 		if (lstat(FullPath.c_str(), &st)) {
+			// silently skip over-long filenames
+			if (errno == ENAMETOOLONG)
+				continue;
 
 			// DJ9: avoid continued spamming of the log screen after a few reports
 			if (i < 10) // eventually stop increasing the count

@@ -552,5 +552,8 @@ int TWinstall_zip(const char *path, int *wipe_cache, bool check_for_digest)
    	TWFunc::Fox_Property_Set("found_fox_overwriting_rom", "");
    }
 
+  if (ret_val == INSTALL_SUCCESS)
+     gui_msg(Msg(msg::kHighlight, "install_took_seconds_msg=Install took {1} second(s).")(total_time));
+
   return ret_val;
 }

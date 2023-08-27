@@ -1266,5 +1266,7 @@
 		<string name="listbox_group_dynamic_part">Dynamic partitions</string>
 		<string name="listbox_group_additions">Additions</string>
 		<string name="partitions_management">Partitions Management</string>
+
+		<string name="install_took_seconds_msg">Install took {1} second(s).</string>
 	</resources>
 </language>

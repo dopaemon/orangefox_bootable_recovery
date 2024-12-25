@@ -63,6 +63,13 @@ bool KernelModuleLoader::Load_Vendor_Modules() {
 
 	TWFunc::RunFoxScript("/system/bin/beforemodules.sh", "");
 
+#ifdef TW_XIAOMI_TOUCH_RMMOD_GOODIX_CORE
+	{
+		std::string result;
+		TWFunc::Exec_Cmd("rmmod goodix_core > /dev/null 2>&1", result, false);
+	}
+#endif
+
 	switch(Get_Boot_Mode()) {
 		case RECOVERY_FASTBOOT_MODE:
 			/* On bootmode: once, there is not always stock kernel

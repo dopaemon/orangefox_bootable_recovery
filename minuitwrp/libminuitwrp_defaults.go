@@ -102,6 +102,9 @@ func globalFlags(ctx android.BaseContext) []string {
 			cflags = append(cflags, "-DTW_ROTATION=0")
 		}
 	}
+	if getMakeVars(ctx, "TW_FRAMERATE") != "" {
+		cflags = append(cflags, "-DTW_FRAMERATE="+getMakeVars(ctx, "TW_FRAMERATE"))
+	}
 	return cflags
 }
 

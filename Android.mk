@@ -581,6 +581,11 @@ endif
 ifneq ($(wildcard external/unzip/Android.mk),)
     TWRP_REQUIRED_MODULES += unzip
 endif
+ifneq ($(wildcard external/bzip2/Android.bp),)
+ifneq ($(TW_EXCLUDE_BZIP2), true)
+    TWRP_REQUIRED_MODULES += bzip2
+endif
+endif
 
 ifneq ($(TW_NO_EXFAT), true)
     TWRP_REQUIRED_MODULES += mkexfatfs fsckexfat

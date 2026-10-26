@@ -34,6 +34,12 @@ endif
 ifneq ($(wildcard system/libziparchive/Android.bp),)
 	RECOVERY_BINARY_SOURCE_FILES += $(TARGET_RECOVERY_ROOT_OUT)/system/bin/unzip
 endif
+ifneq ($(wildcard external/bzip2/Android.bp),)
+ifneq ($(TW_EXCLUDE_BZIP2), true)
+	RECOVERY_BINARY_SOURCE_FILES += $(TARGET_OUT_EXECUTABLES)/bzip2
+endif
+endif
+
 ifneq ($(wildcard external/one-true-awk/Android.bp),)
 	RECOVERY_BINARY_SOURCE_FILES += $(TARGET_OUT_EXECUTABLES)/awk
 endif

@@ -125,9 +125,6 @@ exit:
 #endif
 
 	android::base::SetProperty(TW_MODULES_MOUNTED_PROP, "true");
-#ifdef TW_BATTERY_SYSFS_WAIT_SECONDS
-	TWFunc::Wait_For_Battery(std::chrono::seconds(TW_BATTERY_SYSFS_WAIT_SECONDS));
-#endif
 
 	return true;
 }

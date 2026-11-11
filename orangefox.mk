@@ -886,4 +886,11 @@ ifeq ($(FOX_NO_BLANK_DT2W),1)
         LOCAL_CFLAGS += -DFOX_NO_BLANK_DT2W
     endif
 endif
+
+# vibrations durations defaults [button,keyboard,action]
+ifneq ($(OF_VIBRATION_DEFAULTS),)
+    LOCAL_CFLAGS += -DOF_VIBRATION_DEFAULTS='"$(OF_VIBRATION_DEFAULTS)"'
+else
+    LOCAL_CFLAGS += -DOF_VIBRATION_DEFAULTS='"40,40,160"'
+endif
 #

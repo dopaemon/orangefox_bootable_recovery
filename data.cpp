@@ -948,9 +948,15 @@ void DataManager::SetDefaultValues()
   //[f/d]
  
 #ifndef TW_NO_HAPTICS
+#ifdef OF_DISABLE_VIBRATION_BY_DEFAULT
+	mPersist.SetValue("tw_button_vibrate", "0");
+	mPersist.SetValue("tw_keyboard_vibrate", "0");
+	mPersist.SetValue("tw_action_vibrate", "0");
+#else
 	mPersist.SetValue("tw_button_vibrate", "40");
 	mPersist.SetValue("tw_keyboard_vibrate", "40");
 	mPersist.SetValue("tw_action_vibrate", "160");
+#endif
 	mConst.SetValue("tw_disable_haptics", "0");
 #else
 	LOGINFO("TW_NO_HAPTICS := true\n");

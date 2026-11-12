@@ -412,6 +412,11 @@ ifeq ($(OF_USE_SAMSUNG_HAPTICS),1)
     TW_USE_SAMSUNG_HAPTICS := true
 endif
 
+# ship with vibration switched off by default (the user can still enable it in the settings)
+ifeq ($(OF_DISABLE_VIBRATION_BY_DEFAULT),1)
+    LOCAL_CFLAGS += -DOF_DISABLE_VIBRATION_BY_DEFAULT='"1"'
+endif
+
 # nano
 ifeq ($(FOX_EXCLUDE_NANO_EDITOR),1)
     TW_EXCLUDE_NANO := true

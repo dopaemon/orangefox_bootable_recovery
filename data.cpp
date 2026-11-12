@@ -28,6 +28,7 @@
 #include <cutils/properties.h>
 #include <unistd.h>
 #include <private/android_filesystem_config.h>
+#include <android-base/strings.h>
 #include "variables.h"
 #include "data.hpp"
 #include "partitions.hpp"
@@ -946,17 +947,12 @@ void DataManager::SetDefaultValues()
   mData.SetValue("of_reload_back", "main");
 
   //[f/d]
- 
+
 #ifndef TW_NO_HAPTICS
-#ifdef OF_DISABLE_VIBRATION_BY_DEFAULT
-	mPersist.SetValue("tw_button_vibrate", "0");
-	mPersist.SetValue("tw_keyboard_vibrate", "0");
-	mPersist.SetValue("tw_action_vibrate", "0");
-#else
-	mPersist.SetValue("tw_button_vibrate", "40");
-	mPersist.SetValue("tw_keyboard_vibrate", "40");
-	mPersist.SetValue("tw_action_vibrate", "160");
-#endif
+	std::vector <std::string> vibra_defaults = android::base::Split(OF_VIBRATION_DEFAULTS, "[,;]");
+	mPersist.SetValue("tw_button_vibrate", vibra_defaults.at(0));
+	mPersist.SetValue("tw_keyboard_vibrate", vibra_defaults.at(1));
+	mPersist.SetValue("tw_action_vibrate", vibra_defaults.at(2));
 	mConst.SetValue("tw_disable_haptics", "0");
 #else
 	LOGINFO("TW_NO_HAPTICS := true\n");

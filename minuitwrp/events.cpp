@@ -27,9 +27,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <fstream>
-#ifdef USE_QTI_AIDL_HAPTICS_FIX_OFF
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
-#endif
 
 #ifdef USE_QTI_HAPTICS
 #include <android/hardware/vibrator/1.2/IVibrator.h>
@@ -43,9 +44,6 @@ using ::aidl::android::hardware::vibrator::IVibrator;
 static const std::string kVibratorInstance = std::string("android.hardware.vibrator.") + USE_QTI_AIDL_HAPTICS_FQNAME;
 #else
 static const std::string kVibratorInstance = std::string(IVibrator::descriptor) + "/default";
-#endif
-#ifdef USE_QTI_AIDL_HAPTICS_FIX_OFF
-static std::atomic_int vib_on_count = 0;
 #endif
 #endif
 
@@ -147,34 +145,62 @@ int write_to_file(const std::string& fn, const std::string& line) {
 
 #ifndef TW_NO_HAPTICS
 #ifndef TW_HAPTICS_TSPDRV
-int vibrate(int timeout_ms)
-{
-    if (timeout_ms > 10000) timeout_ms = 1000;
-    char tout[6];
-    sprintf(tout, "%i", timeout_ms);
+/*
+ * Haptics are driven from a dedicated worker thread: vibrate() is called from
+ * the input/render thread for every touch, and the HAL backends need binder
+ * round trips (service lookup, on(), off()) that can take anything from a few
+ * milliseconds to several seconds when the vibrator HAL is slow or not running.
+ * Doing that inline stalls the whole GUI, so vibrate() only posts the request.
+ */
+static std::mutex vib_lock;
+static std::condition_variable vib_cond;
+static int vib_pending_ms = 0; // latest unserved request; newer requests replace older ones
+static bool vib_thread_started = false;
 
 #ifdef USE_QTI_HAPTICS
-    android::sp<android::hardware::vibrator::V1_2::IVibrator> vib = android::hardware::vibrator::V1_2::IVibrator::getService();
-    if (vib != nullptr) {
-        vib->on((uint32_t)timeout_ms);
-    }
+typedef android::hardware::vibrator::V1_2::IVibrator IHidlVibrator;
+static android::sp<IHidlVibrator> hidl_vibrator; // worker thread only
 #elif defined(USE_QTI_AIDL_HAPTICS)
-    std::shared_ptr<IVibrator> vib = IVibrator::fromBinder(ndk::SpAIBinder(AServiceManager_getService(kVibratorInstance.c_str())));
-    if (vib != nullptr) {
-#ifdef USE_QTI_AIDL_HAPTICS_FIX_OFF
-        std::thread([vib, timeout_ms] {
-            if (vib->on((uint32_t)timeout_ms, nullptr).isOk()) {
-                vib_on_count++;
-                usleep(timeout_ms * 1000);
-                vib_on_count--;
-                if (!vib_on_count) vib->off();
-            }
-        }).detach();
-#else
-        vib->on((uint32_t)timeout_ms, nullptr);
-#endif
+static std::shared_ptr<IVibrator> aidl_vibrator; // worker thread only
+
+static std::shared_ptr<IVibrator> get_aidl_vibrator()
+{
+    if (aidl_vibrator == nullptr) {
+        // checkService never waits; getService polls for up to 5 seconds if the HAL is not registered
+        ndk::SpAIBinder binder(AServiceManager_checkService(kVibratorInstance.c_str()));
+        if (binder.get() != nullptr)
+            aidl_vibrator = IVibrator::fromBinder(binder);
     }
-#elif defined(USE_SAMSUNG_HAPTICS)
+    return aidl_vibrator;
+}
+#endif
+
+/* Worker thread only, may block. Returns true if the vibrator was switched on. */
+static bool vibrator_on(int timeout_ms)
+{
+#ifdef USE_QTI_HAPTICS
+    if (hidl_vibrator == nullptr)
+        hidl_vibrator = IHidlVibrator::tryGetService();
+    if (hidl_vibrator == nullptr)
+        return false;
+    if (!hidl_vibrator->on((uint32_t)timeout_ms).isOk()) {
+        hidl_vibrator = nullptr; // HAL died, look it up again next time
+        return false;
+    }
+    return true;
+#elif defined(USE_QTI_AIDL_HAPTICS)
+    std::shared_ptr<IVibrator> vib = get_aidl_vibrator();
+    if (vib == nullptr)
+        return false;
+    if (!vib->on((uint32_t)timeout_ms, nullptr).isOk()) {
+        aidl_vibrator = nullptr; // HAL died, look it up again next time
+        return false;
+    }
+    return true;
+#else
+    char tout[6];
+    sprintf(tout, "%i", timeout_ms);
+#ifdef USE_SAMSUNG_HAPTICS
     /* Newer Samsung devices have duration file only
      0 in VIBRATOR_TIMEOUT_FILE means no vibration
      Anything else is the vibration running for X milliseconds */
@@ -188,6 +214,49 @@ int vibrate(int timeout_ms)
     } else
         write_to_file(VIBRATOR_TIMEOUT_FILE, tout);
 #endif
+    return true;
+#endif
+}
+
+static void vibrator_thread()
+{
+    std::unique_lock<std::mutex> lock(vib_lock);
+    for (;;) {
+        vib_cond.wait(lock, [] { return vib_pending_ms > 0; });
+        int timeout_ms = vib_pending_ms;
+        vib_pending_ms = 0;
+
+        lock.unlock();
+        bool is_on = vibrator_on(timeout_ms);
+        lock.lock();
+#ifdef USE_QTI_AIDL_HAPTICS_FIX_OFF
+        // These HALs don't stop by themselves. Wait out the duration, then switch
+        // off - unless a newer request came in meanwhile, which simply re-triggers.
+        if (is_on && !vib_cond.wait_for(lock, std::chrono::milliseconds(timeout_ms),
+                                        [] { return vib_pending_ms > 0; })) {
+            lock.unlock();
+            if (aidl_vibrator != nullptr && !aidl_vibrator->off().isOk())
+                aidl_vibrator = nullptr;
+            lock.lock();
+        }
+#else
+        (void)is_on;
+#endif
+    }
+}
+
+int vibrate(int timeout_ms)
+{
+    if (timeout_ms <= 0) return 0;
+    if (timeout_ms > 10000) timeout_ms = 1000;
+
+    std::lock_guard<std::mutex> lock(vib_lock);
+    if (!vib_thread_started) {
+        std::thread(vibrator_thread).detach();
+        vib_thread_started = true;
+    }
+    vib_pending_ms = timeout_ms;
+    vib_cond.notify_one();
     return 0;
 }
 #endif

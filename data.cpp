@@ -1542,18 +1542,17 @@ int DataManager::GetMagicValue(const string& varName, string& value)
 		{
 #ifdef TW_CUSTOM_CPU_TEMP_PATH
 			cpu_temp_file = EXPAND(TW_CUSTOM_CPU_TEMP_PATH);
-			if (TWFunc::read_file(cpu_temp_file, results) != 0)
-				return -1;
 #else
 			cpu_temp_file = "/sys/class/thermal/thermal_zone0/temp";
+#endif
 			if (TWFunc::read_file(cpu_temp_file, results) != 0)
 				return -1;
-#endif
-			convert_temp = strtoul(results.c_str(), NULL, 0) / 1000;
-			if (convert_temp <= 0)
-				convert_temp = strtoul(results.c_str(), NULL, 0);
-			if (convert_temp >= 150)
-				convert_temp = strtoul(results.c_str(), NULL, 0) / 10;
+
+			char* endptr = nullptr;
+			long raw_temp = strtol(results.c_str(), &endptr, 10);
+			if (endptr == results.c_str() || *endptr != '\0' || raw_temp <= 0 || raw_temp > 150000)
+				return -1;
+			convert_temp = static_cast<unsigned long>(raw_temp / 1000);
 			cpuSecCheck = curTime.tv_sec + 5;
 		}
 		value = TWFunc::to_string(convert_temp);

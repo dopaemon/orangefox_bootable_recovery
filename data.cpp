@@ -28,6 +28,7 @@
 #include <cutils/properties.h>
 #include <unistd.h>
 #include <private/android_filesystem_config.h>
+#include <android-base/strings.h>
 #include "variables.h"
 #include "data.hpp"
 #include "partitions.hpp"
@@ -948,9 +949,10 @@ void DataManager::SetDefaultValues()
   //[f/d]
  
 #ifndef TW_NO_HAPTICS
-	mPersist.SetValue("tw_button_vibrate", "40");
-	mPersist.SetValue("tw_keyboard_vibrate", "40");
-	mPersist.SetValue("tw_action_vibrate", "160");
+	std::vector <std::string> vibra_defaults = android::base::Split(OF_VIBRATION_DEFAULTS, "[,;]");
+	mPersist.SetValue("tw_button_vibrate", vibra_defaults.at(0));
+	mPersist.SetValue("tw_keyboard_vibrate", vibra_defaults.at(1));
+	mPersist.SetValue("tw_action_vibrate", vibra_defaults.at(2));
 	mConst.SetValue("tw_disable_haptics", "0");
 #else
 	LOGINFO("TW_NO_HAPTICS := true\n");
@@ -1540,18 +1542,17 @@ int DataManager::GetMagicValue(const string& varName, string& value)
 		{
 #ifdef TW_CUSTOM_CPU_TEMP_PATH
 			cpu_temp_file = EXPAND(TW_CUSTOM_CPU_TEMP_PATH);
-			if (TWFunc::read_file(cpu_temp_file, results) != 0)
-				return -1;
 #else
 			cpu_temp_file = "/sys/class/thermal/thermal_zone0/temp";
+#endif
 			if (TWFunc::read_file(cpu_temp_file, results) != 0)
 				return -1;
-#endif
-			convert_temp = strtoul(results.c_str(), NULL, 0) / 1000;
-			if (convert_temp <= 0)
-				convert_temp = strtoul(results.c_str(), NULL, 0);
-			if (convert_temp >= 150)
-				convert_temp = strtoul(results.c_str(), NULL, 0) / 10;
+
+			char* endptr = nullptr;
+			long raw_temp = strtol(results.c_str(), &endptr, 10);
+			if (endptr == results.c_str() || *endptr != '\0' || raw_temp <= 0 || raw_temp > 150000)
+				return -1;
+			convert_temp = static_cast<unsigned long>(raw_temp / 1000);
 			cpuSecCheck = curTime.tv_sec + 5;
 		}
 		value = TWFunc::to_string(convert_temp);
